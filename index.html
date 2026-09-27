@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LUXE | 360° Virtual Boutique</title>
+
+  <!-- A-Frame for 360° VR Spatial Rendering -->
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+
+  <!-- Google Fonts & FontAwesome Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --gold: #d4af37;
+      --gold-light: #f3e5ab;
+      --bg-dark: #0a0a0c;
+      --panel-bg: rgba(15, 15, 20, 0.88);
+      --border-gold: rgba(212, 175, 55, 0.35);
+      --text-main: #f8f9fa;
+      --text-sub: #a1a1aa;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Montserrat', sans-serif; background-color: var(--bg-dark); color: var(--text-main); }
+
+    /* WebXR Container */
+    #vr-viewport { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+
+    /* Header Bar */
+    .brand-header {
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1000;
+      display: flex; align-items: center; gap: 16px; background: var(--panel-bg);
+      backdrop-filter: blur(16px); border: 1px solid var(--border-gold);
+      padding: 12px 32px; border-radius: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    }
+    .brand-title { font-family: 'Cinzel', serif; font-size: 1.4rem; font-weight: 700; letter-spacing: 4px; color: var(--gold); }
+
+    /* Cart Floating Trigger */
+    .cart-trigger {
+      position: absolute; top: 20px; right: 24px; z-index: 1000;
+      background: var(--panel-bg); border: 1px solid var(--border-gold);
+      padding: 12px 20px; border-radius: 30px; cursor: pointer; display: flex;
+      align-items: center; gap: 10px; color: var(--gold); font-weight: 600;
+      transition: all 0.3s ease; backdrop-filter: blur(12px);
+    }
+    .cart-trigger:hover { background: rgba(212, 175, 55, 0.15); transform: translateY(-2px); }
+    .cart-badge { background: var(--gold); color: #000; border-radius: 50%; padding: 2px 7px; font-size: 0.75rem; font-weight: 700; }
+
+    /* Navigation Overlay Hints */
+    .nav-hints {
+      position: absolute; bottom: 24px; left: 24px; z-index: 1000;
+      background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.1);
+      padding: 12px 18px; border-radius: 12px; font-size: 0.8rem; color: var(--text-sub);
+      display: flex; gap: 12px; align-items: center; backdrop-filter: blur(10px);
+    }
+
+    /* Product & Cart Side Drawer */
+    .drawer {
+      position: fixed; top: 0; right: -420px; width: 400px; height: 100%;
+      background: var(--panel-bg); border-left: 1px solid var(--border-gold);
+      z-index: 2000; backdrop-filter: blur(20px); transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex; flex-direction: column; padding: 28px; box-shadow: -10px 0 40px rgba(0,0,0,0.9);
+    }
+    .drawer.open { right: 0; }
+    .drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; }
+    .drawer-title { font-family: 'Cinzel', serif; font-size: 1.2rem; color: var(--gold); }
+    .close-btn { cursor: pointer; font-size: 1.2rem; color: var(--text-sub); transition: color 0.2s; }
+    .close-btn:hover { color: var(--gold); }
+
+    .cart-items-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; margin-bottom: 20px; }
+    .cart-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); }
+    .cart-item-name { font-size: 0.85rem; font-weight: 600; }
+    .cart-item-price { font-size: 0.85rem; color: var(--gold); }
+
+    .btn-gold {
+      width: 100%; background: linear-gradient(135deg, var(--gold) 0%, #b8860b 100%);
+      color: #000; border: none; padding: 14px; font-family: 'Cinzel', serif; font-weight: 700;
+      letter-spacing: 1.5px; border-radius: 8px; cursor: pointer; transition: all 0.3s ease;
+      box-shadow: 0 4px 20px rgba(212, 175, 55, 0.3);
+    }
+    .btn-gold:hover { filter: brightness(1.2); transform: translateY(-1px); }
+
+    /* Product Inspector Modal */
+    .modal-overlay {
+      display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.8); backdrop-filter: blur(12px); z-index: 3000;
+      justify-content: center; align-items: center;
+    }
+    .modal-card {
+      background: #0f0f14; border: 1px solid var(--border-gold); border-radius: 16px;
+      padding: 32px; width: 90%; max-width: 460px; box-shadow: 0 0 50px rgba(212, 175, 55, 0.2);
+      text-align: center;
+    }
+    .product-img-placeholder {
+      width: 100%; height: 200px; background: rgba(255,255,255,0.05); border-radius: 12px;
+      display: flex; justify-content: center; align-items: center; margin-bottom: 20px;
+      border: 1px dashed var(--border-gold); color: var(--gold); font-size: 3rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Brand Header -->
+  <div class="brand-header">
+    <i class="fa-solid fa-gem" style="color: var(--gold);"></i>
+    <span class="brand-title">MAISON VIRTUE</span>
+  </div>
+
+  <!-- Cart Button -->
+  <div class="cart-trigger" onclick="toggleCartDrawer()">
+    <i class="fa-solid fa-bag-shopping"></i>
+    <span>Cart</span>
+    <span class="cart-badge" id="cart-count">0</span>
+  </div>
+
+  <!-- Controls Hint -->
+  <div class="nav-hints">
+    <i class="fa-solid fa-hand-pointer" style="color: var(--gold);"></i>
+    <span>Drag to rotate view | Click gold glowing markers on shelves to inspect items</span>
+  </div>
+
+  <!-- 360° A-Frame VR Scene -->
+  <div id="vr-viewport">
+    <a-scene embedded vr-mode-ui="enabled: false">
+      
+      <!-- Asset Management -->
+      <a-assets>
+        <!-- Sample High-Res 360 Panorama (Luxury Interior) -->
+        <img id="showroom-pano" src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=2000&q=80">
+      </a-assets>
+
+      <!-- 360-Degree Background Sky -->
+      <a-sky src="#showroom-pano" rotation="0 -90 0"></a-sky>
+
+      <!-- Camera with Click Cursor -->
+      <a-entity id="main-camera" camera look-controls position="0 1.6 0">
+        <a-cursor 
+          id="cursor" 
+          raycaster="objects: .clickable" 
+          cursor="fuse: false" 
+          material="color: #d4af37; shader: flat" 
+          geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.02"
+          position="0 0 -1">
+        </a-cursor>
+      </a-entity>
+
+      <!-- Hotspot 1: Diamond Chronograph Watch -->
+      <a-entity class="clickable" geometry="primitive: sphere; radius: 0.12" material="color: #d4af37; shader: flat; opacity: 0.85" 
+                position="-2.2 1.4 -3" onclick="openProductModal('Aethelgard Chronograph', 24500, 'Hand-assembled 18k Rose Gold with sapphire crystal casing.')">
+        <a-animation attribute="scale" to="1.2 1.2 1.2" direction="alternate" dur="1000" repeat="indefinite"></a-animation>
+      </a-entity>
+
+      <!-- Hotspot 2: Designer Leather Handbag -->
+      <a-entity class="clickable" geometry="primitive: sphere; radius: 0.12" material="color: #d4af37; shader: flat; opacity: 0.85" 
+                position="2.4 1.2 -2.5" onclick="openProductModal('Monogram Leather Tote', 4800, 'Crafted from Italian calfskin leather with polished brass hardware.')">
+      </a-entity>
+
+      <!-- Hotspot 3: Luxury Silk Scarf -->
+      <a-entity class="clickable" geometry="primitive: sphere; radius: 0.12" material="color: #d4af37; shader: flat; opacity: 0.85" 
+                position="0.2 1.1 -3.5" onclick="openProductModal('Royal Azure Silk Scarf', 950, '100% Organic Mulberry silk featuring hand-rolled edges.')">
+      </a-entity>
+
+    </a-scene>
+  </div>
+
+  <!-- Cart Side Drawer -->
+  <div class="drawer" id="cart-drawer">
+    <div class="drawer-header">
+      <span class="drawer-title">YOUR SELECTIONS</span>
+      <i class="fa-solid fa-xmark close-btn" onclick="toggleCartDrawer()"></i>
+    </div>
+    <div class="cart-items-list" id="cart-items-container">
+      <p style="color: var(--text-sub); font-size: 0.85rem; text-align: center; margin-top: 40px;">Your shopping bag is empty.</p>
+    </div>
+    <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px; margin-bottom: 16px;">
+      <div style="display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 12px;">
+        <span>Total Estimated</span>
+        <span id="cart-total-price" style="color: var(--gold);">$0</span>
+      </div>
+    </div>
+    <button class="btn-gold" onclick="triggerCheckout()">PROCEED TO CHECKOUT</button>
+  </div>
+
+  <!-- Product Detail Modal -->
+  <div class="modal-overlay" id="product-modal">
+    <div class="modal-card">
+      <div class="product-img-placeholder">
+        <i class="fa-solid fa-crown"></i>
+      </div>
+      <h3 id="modal-product-title" style="font-family: 'Cinzel', serif; color: var(--gold); margin-bottom: 8px;">Product Title</h3>
+      <p id="modal-product-price" style="font-size: 1.1rem; font-weight: 600; margin-bottom: 12px;">$0</p>
+      <p id="modal-product-desc" style="color: var(--text-sub); font-size: 0.85rem; line-height: 1.5; margin-bottom: 24px;"></p>
+      <div style="display: flex; gap: 12px;">
+        <button class="btn-gold" onclick="addToCartFromModal()">ADD TO BAG</button>
+        <button class="btn-gold" style="background: transparent; border: 1px solid var(--border-gold); color: #fff;" onclick="closeProductModal()">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let cart = [];
+    let activeProduct = null;
+
+    function openProductModal(name, price, description) {
+      activeProduct = { name, price, description };
+      document.getElementById('modal-product-title').innerText = name;
+      document.getElementById('modal-product-price').innerText = '$' + price.toLocaleString();
+      document.getElementById('modal-product-desc').innerText = description;
+      document.getElementById('product-modal').style.display = 'flex';
+    }
+
+    function closeProductModal() {
+      document.getElementById('product-modal').style.display = 'none';
+      activeProduct = null;
+    }
+
+    function addToCartFromModal() {
+      if (activeProduct) {
+        cart.push(activeProduct);
+        updateCartUI();
+        closeProductModal();
+        toggleCartDrawer(true);
+      }
+    }
+
+    function toggleCartDrawer(forceOpen = false) {
+      const drawer = document.getElementById('cart-drawer');
+      if (forceOpen) {
+        drawer.classList.add('open');
+      } else {
+        drawer.classList.toggle('open');
+      }
+    }
+
+    function updateCartUI() {
+      const container = document.getElementById('cart-items-container');
+      const countBadge = document.getElementById('cart-count');
+      const totalPriceEl = document.getElementById('cart-total-price');
+
+      countBadge.innerText = cart.length;
+
+      if (cart.length === 0) {
+        container.innerHTML = `<p style="color: var(--text-sub); font-size: 0.85rem; text-align: center; margin-top: 40px;">Your shopping bag is empty.</p>`;
+        totalPriceEl.innerText = '$0';
+        return;
+      }
+
+      let total = 0;
+      container.innerHTML = '';
+      cart.forEach((item, index) => {
+        total += item.price;
+        const div = document.createElement('div');
+        div.className = 'cart-item';
+        div.innerHTML = `
+          <div>
+            <div class="cart-item-name">${item.name}</div>
+            <div class="cart-item-price">$${item.price.toLocaleString()}</div>
+          </div>
+          <i class="fa-solid fa-trash-can" style="color: #ff4757; cursor: pointer;" onclick="removeItem(${index})"></i>
+        `;
+        container.appendChild(div);
+      });
+
+      totalPriceEl.innerText = '$' + total.toLocaleString();
+    }
+
+    function removeItem(index) {
+      cart.splice(index, 1);
+      updateCartUI();
+    }
+
+    function triggerCheckout() {
+      if (cart.length === 0) return alert("Your bag is empty!");
+      alert("Redirecting to secure payment & local home delivery dispatch system...");
+    }
+  </script>
+</body>
+</html>
